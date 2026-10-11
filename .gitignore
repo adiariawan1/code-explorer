@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Next.js build
+.next/
+web/.next/
+out/
+web/out/
+
+# Environment files
+.env.local
+web/.env.local
+.env*.local
+
+# Python cache
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
