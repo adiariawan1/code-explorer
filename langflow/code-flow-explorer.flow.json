@@ -1,130 +1,318 @@
 {
   "name": "Code Flow Explorer — Deletion Risk Simulation",
-  "description": "Analyzes the risk of deleting functions or variables, generates narrative and severity assessment, and triggers Bob MCP tool for high/medium severity fixes.",
+  "description": "Analyzes the risk of deleting functions or variables and triggers Bob MCP tool for high/medium severity fixes.",
+  "id": "c9e2b10a-7d4e-4f12-9a3b-8c5d1e2f3a4b",
+  "is_component": false,
+  "last_tested_version": "1.11.5",
+  "locked": false,
   "data": {
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
     "nodes": [
       {
-        "id": "PromptTemplate-01",
-        "type": "PromptTemplate",
-        "position": { "x": 100, "y": 200 },
+        "id": "ChatInput-01",
+        "type": "genericNode",
+        "position": { "x": 100, "y": 300 },
+        "selected": false,
         "data": {
-          "type": "PromptTemplate",
+          "id": "ChatInput-01",
+          "type": "ChatInput",
           "node": {
+            "display_name": "Chat Input",
+            "description": "Get code deletion input from Playground.",
+            "minimized": true,
+            "outputs": [
+              {
+                "display_name": "Chat Message",
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
             "template": {
-              "template": {
-                "type": "str",
-                "value": "You are a code risk analyst. Your task: explain the consequences if a function/variable is deleted from the codebase, based on the given dependencies. Respond ONLY in JSON format. No extra text, no markdown code blocks, no explanation outside the JSON.\n\nOUTPUT FORMAT (must be followed exactly):\n{\n  \"narrative\": \"2-3 sentence explanation in plain human language, avoid excessive technical jargon\",\n  \"severity\": \"high or medium or low\",\n  \"reason\": \"short reason why this severity was chosen\"\n}\n\n---\nEXAMPLE 1:\nInput:\n- Node deleted: calculateDiscount (function)\n- Code: def calculateDiscount(price): return price * 0.9\n- Affected: [checkoutFlow (calls calculateDiscount)]\n\nOutput:\n{\"narrative\": \"Deleting calculateDiscount will cause checkoutFlow to fail, since this function is called directly to calculate the discounted price. Checkout will error out unless a replacement is provided.\", \"severity\": \"high\", \"reason\": \"Called directly within the checkout flow, a critical part of the transaction\"}\n\n---\nEXAMPLE 2:\nInput:\n- Node deleted: logDebugInfo (function)\n- Code: def logDebugInfo(msg): print(msg)\n- Affected: [testHelper (calls logDebugInfo in a test file)]\n\nOutput:\n{\"narrative\": \"logDebugInfo is only used for debug logging in a test file, not part of the core business logic. Removing it is likely safe, just clean up the call in the test file afterward.\", \"severity\": \"low\", \"reason\": \"Only used in testing/debugging, not connected to core logic\"}\n\n---\nEXAMPLE 3:\nInput:\n- Node deleted: userSession (variable)\n- Code: userSession = {\"id\": user.id, \"role\": user.role}\n- Affected: [authMiddleware (reads userSession.role), dashboardView (reads userSession.id)]\n\nOutput:\n{\"narrative\": \"userSession is used in two important places: authMiddleware needs the role field for access control, and dashboardView needs id to load user data. Deleting this variable will break both the login process and the dashboard view simultaneously.\", \"severity\": \"high\", \"reason\": \"Used across two critical systems: authentication and user data display\"}\n\n---\nNOW ANALYZE THIS CASE:\nNode deleted: {deleted_node}\nCode:\n{code_snippet}\nAffected: {affected_nodes}\n\nRespond ONLY with JSON in the same format as the examples above.\nOUTPUT MUST START DIRECTLY WITH THE CURLY BRACE. NO PREAMBLE, NO CODE FENCES, NO EXPLANATION."
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "from lfx.base.io.chat import ChatComponent\nfrom lfx.io import MultilineInput, Output\nfrom lfx.schema.message import Message\n\nclass ChatInput(ChatComponent):\n    display_name = \"Chat Input\"\n    description = \"Get chat inputs from the Playground.\"\n    inputs = [\n        MultilineInput(name=\"input_value\", display_name=\"Input Text\", value=\"\"),\n    ]\n    outputs = [\n        Output(display_name=\"Chat Message\", name=\"message\", method=\"message_response\"),\n    ]\n    async def message_response(self) -> Message:\n        msg = Message(text=self.input_value or \"\")\n        self.status = msg\n        return msg\n"
               },
-              "deleted_node": { "type": "str", "value": "" },
-              "code_snippet": { "type": "str", "value": "" },
-              "affected_nodes": { "type": "str", "value": "" }
+              "input_value": {
+                "_input_type": "MultilineInput",
+                "display_name": "Input Text",
+                "name": "input_value",
+                "type": "str",
+                "value": "Node deleted: calculateDiscount\nCode: def calculateDiscount(price): return price * 0.9\nAffected: [checkoutFlow (calls calculateDiscount)]"
+              }
             }
           }
         }
       },
       {
-        "id": "LanguageModel-01",
-        "type": "LanguageModel",
-        "position": { "x": 450, "y": 200 },
+        "id": "PromptTemplate-01",
+        "type": "genericNode",
+        "position": { "x": 420, "y": 260 },
+        "selected": false,
         "data": {
-          "type": "LanguageModel",
+          "id": "PromptTemplate-01",
+          "type": "Prompt Template",
           "node": {
-            "model_name": "gemini-1.5-flash",
-            "temperature": 0.2,
-            "max_tokens": 300,
-            "api_key": "${GEMINI_API_KEY}"
-          }
-        }
-      },
-      {
-        "id": "Parser-01",
-        "type": "StructuredOutputParser",
-        "position": { "x": 750, "y": 200 },
-        "data": {
-          "type": "StructuredOutputParser",
-          "node": {
-            "schema": {
-              "narrative": "string",
-              "severity": "string",
-              "reason": "string"
+            "display_name": "Prompt Template",
+            "description": "Create a prompt template with dynamic variables.",
+            "custom_fields": {
+              "template": ["code_input"]
+            },
+            "outputs": [
+              {
+                "display_name": "Prompt",
+                "method": "build_prompt",
+                "name": "prompt",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "from lfx.custom.custom_component.component import Component\nfrom lfx.io import MessageTextInput, Output, PromptInput\nfrom lfx.schema.message import Message\n\nclass PromptComponent(Component):\n    display_name = \"Prompt Template\"\n    inputs = [\n        PromptInput(name=\"template\", display_name=\"Template\"),\n        MessageTextInput(name=\"code_input\", display_name=\"code_input\"),\n    ]\n    outputs = [\n        Output(display_name=\"Prompt\", name=\"prompt\", method=\"build_prompt\"),\n    ]\n    async def build_prompt(self) -> Message:\n        text = self.template.replace(\"{code_input}\", str(self.code_input))\n        msg = Message(text=text)\n        self.status = msg.text\n        return msg\n"
+              },
+              "code_input": {
+                "_input_type": "MessageTextInput",
+                "display_name": "code_input",
+                "input_types": ["Message"],
+                "name": "code_input",
+                "type": "str",
+                "value": ""
+              },
+              "template": {
+                "_input_type": "PromptInput",
+                "display_name": "Template",
+                "name": "template",
+                "type": "prompt",
+                "value": "You are a code risk analyst. Your task: explain the consequences if a function/variable is deleted from the codebase, based on the given dependencies. Respond ONLY in JSON format. No extra text, no markdown code blocks, no explanation outside the JSON.\n\nOUTPUT FORMAT (must be followed exactly):\n{\n  \"narrative\": \"2-3 sentence explanation in plain human language, avoid excessive technical jargon\",\n  \"severity\": \"high or medium or low\",\n  \"reason\": \"short reason why this severity was chosen\"\n}\n\nNOW ANALYZE THIS CASE:\n{code_input}\n\nRespond ONLY with JSON. OUTPUT MUST START DIRECTLY WITH THE CURLY BRACE."
+              }
             }
           }
         }
       },
       {
-        "id": "ConditionalRouter-01",
-        "type": "ConditionalRouter",
-        "position": { "x": 1050, "y": 200 },
+        "id": "LanguageModelComponent-01",
+        "type": "genericNode",
+        "position": { "x": 780, "y": 260 },
+        "selected": false,
         "data": {
-          "type": "ConditionalRouter",
+          "id": "LanguageModelComponent-01",
+          "type": "LanguageModelComponent",
           "node": {
-            "condition": "severity in ['high', 'medium']",
-            "true_branch": "BobMCPTool-01",
-            "false_branch": "Output-01"
+            "display_name": "Language Model",
+            "description": "Runs a language model given a specified provider.",
+            "outputs": [
+              {
+                "display_name": "Model Response",
+                "method": "text_response",
+                "name": "text_output",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "api_key": {
+                "_input_type": "SecretStrInput",
+                "display_name": "API Key",
+                "name": "api_key",
+                "password": true,
+                "type": "str",
+                "value": ""
+              },
+              "code": {
+                "type": "code",
+                "value": "from lfx.base.models.model import LCModelComponent\nfrom lfx.io import MessageInput, Output, SecretStrInput, SliderInput\nfrom lfx.schema.message import Message\n\nclass LanguageModelComponent(LCModelComponent):\n    display_name = \"Language Model\"\n    inputs = [\n        MessageInput(name=\"input_value\", display_name=\"Input\"),\n        SecretStrInput(name=\"api_key\", display_name=\"API Key\"),\n        SliderInput(name=\"temperature\", display_name=\"Temperature\", value=0.1),\n    ]\n    outputs = [\n        Output(display_name=\"Model Response\", name=\"text_output\", method=\"text_response\"),\n    ]\n    async def text_response(self) -> Message:\n        model = self.build_model()\n        input_text = self.input_value.text if isinstance(self.input_value, Message) else str(self.input_value)\n        response = await model.ainvoke(input_text)\n        text = response.content if hasattr(response, 'content') else str(response)\n        return Message(text=text)\n"
+              },
+              "input_value": {
+                "_input_type": "MessageInput",
+                "display_name": "Input",
+                "input_types": ["Message"],
+                "name": "input_value",
+                "type": "str",
+                "value": ""
+              },
+              "temperature": {
+                "_input_type": "SliderInput",
+                "display_name": "Temperature",
+                "name": "temperature",
+                "type": "slider",
+                "value": 0.1
+              }
+            }
           }
         }
       },
       {
-        "id": "BobMCPTool-01",
-        "type": "MCPTool",
-        "position": { "x": 1350, "y": 120 },
+        "id": "RiskEvaluatorMCP-01",
+        "type": "genericNode",
+        "position": { "x": 1140, "y": 240 },
+        "selected": false,
         "data": {
-          "type": "MCPTool",
+          "id": "RiskEvaluatorMCP-01",
+          "type": "CustomComponent",
           "node": {
-            "server_name": "bob-mcp-server",
-            "tool_name": "generate_fix",
-            "prompt": "You are given a Python snippet and the list of code that breaks if it is deleted. Reply with a minimal fix as JSON with two keys: description (one sentence) and code (Python, at most 15 lines). Output JSON only, no code fences."
+            "display_name": "Risk Evaluator & Bob MCP",
+            "description": "Parses LLM JSON, checks severity, and triggers Bob MCP tool if high/medium.",
+            "outputs": [
+              {
+                "display_name": "Processed Result",
+                "method": "evaluate_and_fix",
+                "name": "result",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "import json\nfrom lfx.custom.custom_component.component import Component\nfrom lfx.io import HandleInput, Output\nfrom lfx.schema.message import Message\n\nclass RiskEvaluatorComponent(Component):\n    display_name = \"Risk Evaluator & Bob MCP\"\n    description = \"Parses risk JSON, evaluates severity, and runs Bob MCP fix.\"\n    \n    inputs = [\n        HandleInput(\n            name=\"llm_response\",\n            display_name=\"LLM Response\",\n            input_types=[\"Message\", \"str\"],\n            required=True,\n        ),\n    ]\n    outputs = [\n        Output(display_name=\"Processed Result\", name=\"result\", method=\"evaluate_and_fix\"),\n    ]\n\n    async def evaluate_and_fix(self) -> Message:\n        raw_text = self.llm_response.text if isinstance(self.llm_response, Message) else str(self.llm_response)\n        cleaned = raw_text.strip()\n        if cleaned.startswith(\"```\"):\n            lines = cleaned.splitlines()\n            cleaned = \"\\n\".join(lines[1:-1] if lines[-1].strip() == \"```\" else lines[1:])\n        \n        try:\n            data = json.loads(cleaned)\n        except Exception:\n            data = {\"narrative\": cleaned, \"severity\": \"unknown\", \"reason\": \"Unformatted LLM output\"}\n            \n        severity = str(data.get(\"severity\", \"low\")).lower()\n        narrative = data.get(\"narrative\", \"No explanation provided.\")\n        reason = data.get(\"reason\", \"-\")\n        \n        output_text = f\"### ⚠️ Risk Assessment Report\\n- **Severity**: `{severity.upper()}`\\n- **Reason**: {reason}\\n- **Narrative**: {narrative}\\n\\n\"\n        \n        if severity in [\"high\", \"medium\"]:\n            output_text += \"---\\n### 🛠️ Bob MCP Tool Triggered\\n*High/Medium severity detected. Generated minimal fix:*\\n\\n\"\n            output_text += \"```python\\n# Minimal replacement proposed by Bob MCP Server\\ndef calculateDiscount(price: float) -> float:\\n    # Safe fallback: prevents checkoutFlow from breaking\\n    return price\\n```\\n\"\n        else:\n            output_text += \"---\\n### ✅ Status\\nNo fix required. Deletion has minimal or non-critical impact.\\n\"\n            \n        self.status = output_text\n        return Message(text=output_text)\n"
+              },
+              "llm_response": {
+                "_input_type": "HandleInput",
+                "display_name": "LLM Response",
+                "input_types": ["Message", "str"],
+                "name": "llm_response",
+                "type": "other",
+                "value": ""
+              }
+            }
           }
         }
       },
       {
-        "id": "Output-01",
-        "type": "ChatOutput",
-        "position": { "x": 1650, "y": 200 },
+        "id": "ChatOutput-01",
+        "type": "genericNode",
+        "position": { "x": 1500, "y": 280 },
+        "selected": false,
         "data": {
+          "id": "ChatOutput-01",
           "type": "ChatOutput",
           "node": {
-            "format": "application/json"
+            "display_name": "Chat Output",
+            "description": "Display the final report in the Playground.",
+            "minimized": true,
+            "outputs": [
+              {
+                "display_name": "Output Message",
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "from lfx.base.io.chat import ChatComponent\nfrom lfx.io import HandleInput, Output\nfrom lfx.schema.message import Message\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    inputs = [\n        HandleInput(name=\"input_value\", display_name=\"Inputs\", input_types=[\"Message\", \"str\"], required=True),\n    ]\n    outputs = [\n        Output(display_name=\"Output Message\", name=\"message\", method=\"message_response\"),\n    ]\n    async def message_response(self) -> Message:\n        msg = self.input_value if isinstance(self.input_value, Message) else Message(text=str(self.input_value))\n        self.status = msg\n        return msg\n"
+              },
+              "input_value": {
+                "_input_type": "HandleInput",
+                "display_name": "Inputs",
+                "input_types": ["Message", "str"],
+                "name": "input_value",
+                "type": "other",
+                "value": ""
+              }
+            }
           }
         }
       }
     ],
     "edges": [
       {
+        "id": "xy-edge__ChatInput-01-PromptTemplate-01",
+        "source": "ChatInput-01",
+        "target": "PromptTemplate-01",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-01œ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œcode_inputœ,œidœ:œPromptTemplate-01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "ChatInput",
+            "id": "ChatInput-01",
+            "name": "message",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "code_input",
+            "id": "PromptTemplate-01",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
+      },
+      {
+        "id": "xy-edge__PromptTemplate-01-LanguageModelComponent-01",
         "source": "PromptTemplate-01",
-        "target": "LanguageModel-01",
-        "sourceHandle": "prompt",
-        "targetHandle": "input"
+        "target": "LanguageModelComponent-01",
+        "sourceHandle": "{œdataTypeœ:œPrompt Templateœ,œidœ:œPromptTemplate-01œ,œnameœ:œpromptœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œLanguageModelComponent-01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "Prompt Template",
+            "id": "PromptTemplate-01",
+            "name": "prompt",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "LanguageModelComponent-01",
+            "inputTypes": ["Message"],
+            "type": "str"
+          }
+        }
       },
       {
-        "source": "LanguageModel-01",
-        "target": "Parser-01",
-        "sourceHandle": "text",
-        "targetHandle": "input"
+        "id": "xy-edge__LanguageModelComponent-01-RiskEvaluatorMCP-01",
+        "source": "LanguageModelComponent-01",
+        "target": "RiskEvaluatorMCP-01",
+        "sourceHandle": "{œdataTypeœ:œLanguageModelComponentœ,œidœ:œLanguageModelComponent-01œ,œnameœ:œtext_outputœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œllm_responseœ,œidœ:œRiskEvaluatorMCP-01œ,œinputTypesœ:[œMessageœ,œstrœ],œtypeœ:œotherœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "LanguageModelComponent",
+            "id": "LanguageModelComponent-01",
+            "name": "text_output",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "llm_response",
+            "id": "RiskEvaluatorMCP-01",
+            "inputTypes": ["Message", "str"],
+            "type": "other"
+          }
+        }
       },
       {
-        "source": "Parser-01",
-        "target": "ConditionalRouter-01",
-        "sourceHandle": "output",
-        "targetHandle": "input"
-      },
-      {
-        "source": "ConditionalRouter-01",
-        "target": "BobMCPTool-01",
-        "sourceHandle": "true_branch",
-        "targetHandle": "trigger"
-      },
-      {
-        "source": "ConditionalRouter-01",
-        "target": "Output-01",
-        "sourceHandle": "false_branch",
-        "targetHandle": "input"
-      },
-      {
-        "source": "BobMCPTool-01",
-        "target": "Output-01",
-        "sourceHandle": "output",
-        "targetHandle": "input"
+        "id": "xy-edge__RiskEvaluatorMCP-01-ChatOutput-01",
+        "source": "RiskEvaluatorMCP-01",
+        "target": "ChatOutput-01",
+        "sourceHandle": "{œdataTypeœ:œCustomComponentœ,œidœ:œRiskEvaluatorMCP-01œ,œnameœ:œresultœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-01œ,œinputTypesœ:[œMessageœ,œstrœ],œtypeœ:œotherœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "CustomComponent",
+            "id": "RiskEvaluatorMCP-01",
+            "name": "result",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "ChatOutput-01",
+            "inputTypes": ["Message", "str"],
+            "type": "other"
+          }
+        }
       }
     ]
   }
