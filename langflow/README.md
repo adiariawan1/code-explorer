@@ -1,23 +1,12 @@
-# Panduan Impor Flow Langflow (Code Flow Explorer)
+# Panduan Impor & Tes Flow A (Langflow)
 
-### 1. Impor Flow A (Mode API Key)
-1. Buka dashboard Langflow -> klik **New Flow** -> **Import** -> pilih `flow-a-api-mode.json`.
-2. Buka **Settings > Global Variables**, tambahkan `GEMINI_API_KEY` (atau pasang key di node `Language Model`).
-3. Buka **Playground** untuk menguji payload JSON.
-4. Salin URL dan Flow ID ke `.env.local`:
-   ```env
-   LANGFLOW_URL=http://localhost:7860
-   LANGFLOW_FLOW_ID=<id-flow-a>
-   LANGFLOW_MODEL_NODE_ID=LanguageModelComponent-01
-   ```
+1. Buka Langflow -> klik **New Flow** -> **Import** -> pilih `code-flow-risk-api.flow.json`.
+2. Masukkan API Key di node **Language Model** (kolom API Key) atau via **Settings > Global Variables**.
+3. Di node **Language Model**, pastikan provider dan model telah dipilih (mis. Google Generative AI / `gemini-2.0-flash`).
+4. Klik **Playground**, lalu tempel contoh JSON berikut ke **Input Text**:
+```json
+{"deleted_node":{"name":"calculate_total","type":"function"},"code_snippet":"def calculate_total(items, discount):\n    total = 0\n    for price in items:\n        total += validate_item(price)\n    return total * (1 - discount)","affected_nodes":[{"name":"checkout","relation":"calls calculate_total"},{"name":"main","relation":"calls checkout (indirect)"}]}
+```
+5. Klik **Send**. Respons akan mengembalikan JSON valid (`narrative`, `severity`, `reason`, `suggested_fix`).
 
-### 2. Impor Flow B (Mode Bob MCP)
-1. Di Langflow, klik **New Flow** -> **Import** -> pilih `flow-b-bob-mode.json`.
-2. Flow ini mengekspos tool MCP `get_delete_impact` tanpa model bahasa.
-3. Buka menu **Endpoint / MCP Server** pada flow tersebut, salin konfigurasi tool `get_delete_impact`.
-4. Tempel konfigurasi MCP ke Bob IDE (atau simpan di `.env.local` sebagai `NEXT_PUBLIC_BOB_MCP_CONFIG`).
-
-### 3. Pengujian Playground
-Uji Flow A di Playground dengan mengirimkan payload JSON:
-- **Test 1 (`calculate_total`)**: Menghasilkan severity `high`/`medium` dan saran fix valid tanpa `return None`.
-- **Test 2 (`unused_helper`)**: Menghasilkan severity `low` tanpa saran fix.
+*Catatan: Status flow ditandai belum teruji secara live sampai dikonfirmasi melalui pengujian langsung di Playground oleh Anda.*
