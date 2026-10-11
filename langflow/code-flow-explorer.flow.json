@@ -1,0 +1,131 @@
+{
+  "name": "Code Flow Explorer — Deletion Risk Simulation",
+  "description": "Analyzes the risk of deleting functions or variables, generates narrative and severity assessment, and triggers Bob MCP tool for high/medium severity fixes.",
+  "data": {
+    "nodes": [
+      {
+        "id": "PromptTemplate-01",
+        "type": "PromptTemplate",
+        "position": { "x": 100, "y": 200 },
+        "data": {
+          "type": "PromptTemplate",
+          "node": {
+            "template": {
+              "template": {
+                "type": "str",
+                "value": "You are a code risk analyst. Your task: explain the consequences if a function/variable is deleted from the codebase, based on the given dependencies. Respond ONLY in JSON format. No extra text, no markdown code blocks, no explanation outside the JSON.\n\nOUTPUT FORMAT (must be followed exactly):\n{\n  \"narrative\": \"2-3 sentence explanation in plain human language, avoid excessive technical jargon\",\n  \"severity\": \"high or medium or low\",\n  \"reason\": \"short reason why this severity was chosen\"\n}\n\n---\nEXAMPLE 1:\nInput:\n- Node deleted: calculateDiscount (function)\n- Code: def calculateDiscount(price): return price * 0.9\n- Affected: [checkoutFlow (calls calculateDiscount)]\n\nOutput:\n{\"narrative\": \"Deleting calculateDiscount will cause checkoutFlow to fail, since this function is called directly to calculate the discounted price. Checkout will error out unless a replacement is provided.\", \"severity\": \"high\", \"reason\": \"Called directly within the checkout flow, a critical part of the transaction\"}\n\n---\nEXAMPLE 2:\nInput:\n- Node deleted: logDebugInfo (function)\n- Code: def logDebugInfo(msg): print(msg)\n- Affected: [testHelper (calls logDebugInfo in a test file)]\n\nOutput:\n{\"narrative\": \"logDebugInfo is only used for debug logging in a test file, not part of the core business logic. Removing it is likely safe, just clean up the call in the test file afterward.\", \"severity\": \"low\", \"reason\": \"Only used in testing/debugging, not connected to core logic\"}\n\n---\nEXAMPLE 3:\nInput:\n- Node deleted: userSession (variable)\n- Code: userSession = {\"id\": user.id, \"role\": user.role}\n- Affected: [authMiddleware (reads userSession.role), dashboardView (reads userSession.id)]\n\nOutput:\n{\"narrative\": \"userSession is used in two important places: authMiddleware needs the role field for access control, and dashboardView needs id to load user data. Deleting this variable will break both the login process and the dashboard view simultaneously.\", \"severity\": \"high\", \"reason\": \"Used across two critical systems: authentication and user data display\"}\n\n---\nNOW ANALYZE THIS CASE:\nNode deleted: {deleted_node}\nCode:\n{code_snippet}\nAffected: {affected_nodes}\n\nRespond ONLY with JSON in the same format as the examples above.\nOUTPUT MUST START DIRECTLY WITH THE CURLY BRACE. NO PREAMBLE, NO CODE FENCES, NO EXPLANATION."
+              },
+              "deleted_node": { "type": "str", "value": "" },
+              "code_snippet": { "type": "str", "value": "" },
+              "affected_nodes": { "type": "str", "value": "" }
+            }
+          }
+        }
+      },
+      {
+        "id": "LanguageModel-01",
+        "type": "LanguageModel",
+        "position": { "x": 450, "y": 200 },
+        "data": {
+          "type": "LanguageModel",
+          "node": {
+            "model_name": "gemini-1.5-flash",
+            "temperature": 0.2,
+            "max_tokens": 300,
+            "api_key": "${GEMINI_API_KEY}"
+          }
+        }
+      },
+      {
+        "id": "Parser-01",
+        "type": "StructuredOutputParser",
+        "position": { "x": 750, "y": 200 },
+        "data": {
+          "type": "StructuredOutputParser",
+          "node": {
+            "schema": {
+              "narrative": "string",
+              "severity": "string",
+              "reason": "string"
+            }
+          }
+        }
+      },
+      {
+        "id": "ConditionalRouter-01",
+        "type": "ConditionalRouter",
+        "position": { "x": 1050, "y": 200 },
+        "data": {
+          "type": "ConditionalRouter",
+          "node": {
+            "condition": "severity in ['high', 'medium']",
+            "true_branch": "BobMCPTool-01",
+            "false_branch": "Output-01"
+          }
+        }
+      },
+      {
+        "id": "BobMCPTool-01",
+        "type": "MCPTool",
+        "position": { "x": 1350, "y": 120 },
+        "data": {
+          "type": "MCPTool",
+          "node": {
+            "server_name": "bob-mcp-server",
+            "tool_name": "generate_fix",
+            "prompt": "You are given a Python snippet and the list of code that breaks if it is deleted. Reply with a minimal fix as JSON with two keys: description (one sentence) and code (Python, at most 15 lines). Output JSON only, no code fences."
+          }
+        }
+      },
+      {
+        "id": "Output-01",
+        "type": "ChatOutput",
+        "position": { "x": 1650, "y": 200 },
+        "data": {
+          "type": "ChatOutput",
+          "node": {
+            "format": "application/json"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "PromptTemplate-01",
+        "target": "LanguageModel-01",
+        "sourceHandle": "prompt",
+        "targetHandle": "input"
+      },
+      {
+        "source": "LanguageModel-01",
+        "target": "Parser-01",
+        "sourceHandle": "text",
+        "targetHandle": "input"
+      },
+      {
+        "source": "Parser-01",
+        "target": "ConditionalRouter-01",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      },
+      {
+        "source": "ConditionalRouter-01",
+        "target": "BobMCPTool-01",
+        "sourceHandle": "true_branch",
+        "targetHandle": "trigger"
+      },
+      {
+        "source": "ConditionalRouter-01",
+        "target": "Output-01",
+        "sourceHandle": "false_branch",
+        "targetHandle": "input"
+      },
+      {
+        "source": "BobMCPTool-01",
+        "target": "Output-01",
+        "sourceHandle": "output",
+        "targetHandle": "input"
+      }
+    ]
+  }
+}
