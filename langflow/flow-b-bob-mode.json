@@ -1,0 +1,173 @@
+{
+  "name": "Code Flow Explorer — Flow B (Bob MCP Mode)",
+  "description": "Flow B diekspos sebagai tool MCP bernama get_delete_impact untuk Bob IDE tanpa language model. Merakit brief dampak penghapusan kode lengkap dengan pemisahan dependensi langsung dan tidak langsung.",
+  "id": "cfe-flow-b-bob-mode",
+  "is_component": false,
+  "last_tested_version": "1.11.5",
+  "locked": false,
+  "data": {
+    "viewport": { "x": 0, "y": 0, "zoom": 1 },
+    "nodes": [
+      {
+        "id": "ChatInput-01",
+        "type": "genericNode",
+        "position": { "x": 100, "y": 300 },
+        "selected": false,
+        "data": {
+          "id": "ChatInput-01",
+          "type": "ChatInput",
+          "node": {
+            "display_name": "Chat Input",
+            "description": "Menerima payload JSON dari MCP Client (Bob IDE) atau Playground.",
+            "minimized": true,
+            "outputs": [
+              {
+                "display_name": "Chat Message",
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "from lfx.base.io.chat import ChatComponent\nfrom lfx.io import MultilineInput, Output\nfrom lfx.schema.message import Message\n\nclass ChatInput(ChatComponent):\n    display_name = \"Chat Input\"\n    description = \"Get chat inputs from the Playground or MCP.\"\n    inputs = [\n        MultilineInput(name=\"input_value\", display_name=\"Input Text\", value=\"\"),\n    ]\n    outputs = [\n        Output(display_name=\"Chat Message\", name=\"message\", method=\"message_response\"),\n    ]\n    async def message_response(self) -> Message:\n        msg = Message(text=self.input_value or \"\")\n        self.status = msg\n        return msg\n"
+              },
+              "input_value": {
+                "_input_type": "MultilineInput",
+                "display_name": "Input Text",
+                "name": "input_value",
+                "type": "str",
+                "value": "{\"deleted_node\":{\"name\":\"amount\",\"type\":\"variable\"},\"code_snippet\":\"amount = calculate_total(items, 0.1)\\nreturn f'Total: {amount}'\",\"affected_nodes\":[{\"name\":\"checkout\",\"relation\":\"uses amount\"},{\"name\":\"main\",\"relation\":\"calls checkout (indirect)\"}]}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "BobMCPTool-01",
+        "type": "genericNode",
+        "position": { "x": 520, "y": 280 },
+        "selected": false,
+        "data": {
+          "id": "BobMCPTool-01",
+          "type": "BobMCPTool",
+          "node": {
+            "display_name": "get_delete_impact (MCP Tool)",
+            "description": "Merakit brief dampak penghapusan kode untuk Bob IDE tanpa model bahasa.",
+            "minimized": false,
+            "outputs": [
+              {
+                "display_name": "Brief Output",
+                "method": "assemble_brief",
+                "name": "brief_message",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "import json\nfrom lfx.custom.custom_component.component import Component\nfrom lfx.inputs.inputs import HandleInput\nfrom lfx.io import Output\nfrom lfx.schema.message import Message\n\nclass BobMCPToolComponent(Component):\n    display_name = \"get_delete_impact\"\n    description = \"MCP Tool yang merakit brief dampak penghapusan kode untuk Bob IDE tanpa model bahasa.\"\n    icon = \"wrench\"\n    name = \"get_delete_impact\"\n\n    inputs = [\n        HandleInput(\n            name=\"payload_input\",\n            display_name=\"Payload Input\",\n            info=\"JSON payload (deleted_node, code_snippet, affected_nodes)\",\n            input_types=[\"Message\", \"str\"],\n            required=True,\n        ),\n    ]\n\n    outputs = [\n        Output(\n            display_name=\"Brief Output\",\n            name=\"brief_message\",\n            method=\"assemble_brief\",\n        ),\n    ]\n\n    def assemble_brief(self) -> Message:\n        raw_val = self.payload_input.text if isinstance(self.payload_input, Message) else str(self.payload_input or \"\")\n        try:\n            payload = json.loads(raw_val.strip())\n        except Exception:\n            payload = {\n                \"deleted_node\": {\"name\": \"target_node\", \"type\": \"function\"},\n                \"code_snippet\": raw_val,\n                \"affected_nodes\": []\n            }\n\n        del_node = payload.get(\"deleted_node\", {})\n        node_name = del_node.get(\"name\", \"unknown\")\n        node_type = del_node.get(\"type\", \"unknown\")\n        code_snippet = payload.get(\"code_snippet\", \"\")\n        affected = payload.get(\"affected_nodes\", [])\n\n        direct = [a for a in affected if \"(indirect)\" not in a.get(\"relation\", \"\")]\n        indirect = [a for a in affected if \"(indirect)\" in a.get(\"relation\", \"\")]\n\n        direct_str = \"\\n\".join(f\"- {a.get('name')}: {a.get('relation')}\" for a in direct) or \"- Tidak ada dependensi langsung\"\n        indirect_str = \"\\n\".join(f\"- {a.get('name')}: {a.get('relation')}\" for a in indirect) or \"- Tidak ada dampak lanjutan\"\n\n        brief = f\"\"\"=== BRIEF ANALISIS DAMPAK PENGHAPUSAN KODE (BOB IDE) ===\n\n1. NODE YANG DIHAPUS:\n- Nama: {node_name}\n- Tipe: {node_type}\n\n2. POTONGAN KODE:\n{code_snippet}\n\n3. DAFTAR TERDAMPAK LANGSUNG:\n{direct_str}\n\n4. DAFTAR TERDAMPAK TIDAK LANGSUNG:\n{indirect_str}\n\n5. PETUNJUK & FORMAT JAWABAN UNTUK BOB:\n- Tulis narasi dampak penghapusan. Bedakan secara tegas antara dependensi langsung dan rantai tidak langsung. Jangan sebut node tidak langsung sebagai dependensi langsung!\n- Variabel lokal milik function yang dihapus hilang bersama fungsinya, bukan sebagai pemanggil yang rusak.\n- Jangan menyarankan fix yang menyembunyikan error (DILARANG: return None, assign None, try-except kosong). Berikan perbaikan yang mempertahankan perilaku benar atau jelaskan penyesuaian pada pemanggil.\n- Format respon akhir:\n  * Narasi: 2-3 kalimat penjelasan\n  * Severity: High / Medium / Low\n  * Alasan: Dasar penentuan severity\n  * Saran Perbaikan: Deskripsi dan potongan kode Python yang valid (hanya untuk severity High / Medium)\n\"\"\"\n        self.status = brief\n        return Message(text=brief)\n"
+              },
+              "payload_input": {
+                "_input_type": "HandleInput",
+                "display_name": "Payload Input",
+                "input_types": ["Message", "str"],
+                "name": "payload_input",
+                "type": "other",
+                "value": ""
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "ChatOutput-01",
+        "type": "genericNode",
+        "position": { "x": 920, "y": 300 },
+        "selected": false,
+        "data": {
+          "id": "ChatOutput-01",
+          "type": "ChatOutput",
+          "node": {
+            "display_name": "Chat Output",
+            "description": "Menampilkan brief akhir yang siap digunakan Bob IDE.",
+            "minimized": true,
+            "outputs": [
+              {
+                "display_name": "Output Message",
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "types": ["Message"]
+              }
+            ],
+            "template": {
+              "_type": "Component",
+              "code": {
+                "type": "code",
+                "value": "from lfx.base.io.chat import ChatComponent\nfrom lfx.io import HandleInput, Output\nfrom lfx.schema.message import Message\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    inputs = [\n        HandleInput(name=\"input_value\", display_name=\"Inputs\", input_types=[\"Message\", \"str\"], required=True),\n    ]\n    outputs = [\n        Output(display_name=\"Output Message\", name=\"message\", method=\"message_response\"),\n    ]\n    async def message_response(self) -> Message:\n        msg = self.input_value if isinstance(self.input_value, Message) else Message(text=str(self.input_value))\n        self.status = msg\n        return msg\n"
+              },
+              "input_value": {
+                "_input_type": "HandleInput",
+                "display_name": "Inputs",
+                "input_types": ["Message", "str"],
+                "name": "input_value",
+                "type": "other",
+                "value": ""
+              }
+            }
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "xy-edge__ChatInput-01-BobMCPTool-01",
+        "source": "ChatInput-01",
+        "target": "BobMCPTool-01",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-01œ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œpayload_inputœ,œidœ:œBobMCPTool-01œ,œinputTypesœ:[œMessageœ,œstrœ],œtypeœ:œotherœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "ChatInput",
+            "id": "ChatInput-01",
+            "name": "message",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "payload_input",
+            "id": "BobMCPTool-01",
+            "inputTypes": ["Message", "str"],
+            "type": "other"
+          }
+        }
+      },
+      {
+        "id": "xy-edge__BobMCPTool-01-ChatOutput-01",
+        "source": "BobMCPTool-01",
+        "target": "ChatOutput-01",
+        "sourceHandle": "{œdataTypeœ:œBobMCPToolœ,œidœ:œBobMCPTool-01œ,œnameœ:œbrief_messageœ,œoutput_typesœ:[œMessageœ]}",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-01œ,œinputTypesœ:[œMessageœ,œstrœ],œtypeœ:œotherœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "BobMCPTool",
+            "id": "BobMCPTool-01",
+            "name": "brief_message",
+            "output_types": ["Message"]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "ChatOutput-01",
+            "inputTypes": ["Message", "str"],
+            "type": "other"
+          }
+        }
+      }
+    ]
+  }
+}

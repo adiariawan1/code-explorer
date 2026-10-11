@@ -1,17 +1,23 @@
-# Langflow Setup for Code Flow Explorer
+# Panduan Impor Flow Langflow (Code Flow Explorer)
 
-1. **Import Flow**: Buka UI Langflow, pilih **My Projects** -> **Import**, lalu pilih file `code-flow-explorer.flow.json`.
-2. **Global Variables**: Di menu Settings -> Global Variables, tambahkan `GEMINI_API_KEY` (atau `ANTHROPIC_API_KEY`).
-3. **MCP Tool (Bob)**: Pastikan MCP server Bob terdaftar jika menggunakan fix generator; jika belum tersedia, Bob MCP berperan sebagai placeholder.
-4. **Environment App**: Salin URL dan Flow ID ke `.env.local`:
-   ```
+### 1. Impor Flow A (Mode API Key)
+1. Buka dashboard Langflow -> klik **New Flow** -> **Import** -> pilih `flow-a-api-mode.json`.
+2. Buka **Settings > Global Variables**, tambahkan `GEMINI_API_KEY` (atau pasang key di node `Language Model`).
+3. Buka **Playground** untuk menguji payload JSON.
+4. Salin URL dan Flow ID ke `.env.local`:
+   ```env
    LANGFLOW_URL=http://localhost:7860
-   LANGFLOW_FLOW_ID=<your-flow-id>
+   LANGFLOW_FLOW_ID=<id-flow-a>
+   LANGFLOW_MODEL_NODE_ID=LanguageModelComponent-01
    ```
-5. **Testing Endpoint via cURL**:
-   ```bash
-   curl -X POST "$LANGFLOW_URL/api/v1/run/$LANGFLOW_FLOW_ID" \
-     -H "Content-Type: application/json" \
-     -d '{"input_value": "{\"deleted_node\":\"validate_item\",\"code_snippet\":\"def validate_item(p): ...\",\"affected_nodes\":\"calculate_total\"}"}'
-   ```
-   Flow akan merespons dengan JSON `{"narrative": "...", "severity": "...", "reason": "..."}`.
+
+### 2. Impor Flow B (Mode Bob MCP)
+1. Di Langflow, klik **New Flow** -> **Import** -> pilih `flow-b-bob-mode.json`.
+2. Flow ini mengekspos tool MCP `get_delete_impact` tanpa model bahasa.
+3. Buka menu **Endpoint / MCP Server** pada flow tersebut, salin konfigurasi tool `get_delete_impact`.
+4. Tempel konfigurasi MCP ke Bob IDE (atau simpan di `.env.local` sebagai `NEXT_PUBLIC_BOB_MCP_CONFIG`).
+
+### 3. Pengujian Playground
+Uji Flow A di Playground dengan mengirimkan payload JSON:
+- **Test 1 (`calculate_total`)**: Menghasilkan severity `high`/`medium` dan saran fix valid tanpa `return None`.
+- **Test 2 (`unused_helper`)**: Menghasilkan severity `low` tanpa saran fix.
